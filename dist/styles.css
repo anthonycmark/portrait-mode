@@ -41,7 +41,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .progress-track { height: 7px; border-radius: 5px; background: rgba(0,0,0,.35); overflow: hidden; }
 .progress-bar { height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #29d8ae, var(--gold)); transition: width .45s cubic-bezier(.2,.8,.2,1); }
 .modifier-strip { display: flex; min-height: 48px; gap: 8px; overflow-x: auto; scrollbar-width: none; }
-.modifier-strip:empty::after { content: "Win a round to find your first charm"; color: var(--muted); width: 100%; padding: 13px; text-align: center; border: 1px dashed var(--line); border-radius: 13px; font-size: .8rem; }
+.modifier-strip:empty::after { content: "Win a round to find your first relic"; color: var(--muted); width: 100%; padding: 13px; text-align: center; border: 1px dashed var(--line); border-radius: 13px; font-size: .8rem; }
 .charm { flex: 0 0 auto; min-width: 112px; padding: 8px 10px; text-align: left; color: var(--ink); border-radius: 12px; background: #382955; border: 1px solid #7050aa; }
 .charm strong, .charm small { display: block; }
 .charm strong { font-size: .78rem; }
