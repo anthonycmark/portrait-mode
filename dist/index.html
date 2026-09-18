@@ -39,6 +39,7 @@
         <section id="modifier-strip" class="modifier-strip" aria-label="Charms"></section>
 
         <section class="table-area">
+          <div id="blind-rule" class="blind-rule"></div>
           <div id="message" class="message">Choose up to 5 cards</div>
           <div id="played-cards" class="played-cards" aria-label="Played cards"></div>
           <div id="score-burst" class="score-burst" aria-hidden="true"></div>
@@ -72,11 +73,13 @@
           <div><span>ROUND CLEARED</span><h1 id="shop-title">Choose your edge</h1></div>
           <div class="money"><span>◆</span><strong id="shop-money">0</strong></div>
         </header>
+        <div class="section-heading shop-title-row"><div><span>CHARMS</span><h2 id="slot-label">0 / 5 slots</h2></div><small>Tap owned charms to sell</small></div>
         <div id="shop-list" class="shop-list"></div>
         <section class="forge-section">
           <div class="section-heading"><div><span>DECK WORK</span><h2>Tune a card</h2></div><small>Permanent for this run</small></div>
           <div id="forge-list" class="forge-list"></div>
         </section>
+        <button id="pack-button" class="pack-button"><span class="pack-icon">✦</span><span><strong>OPEN INSIGHT PACK</strong><small>Choose 1 of 3 permanent hand upgrades</small></span><span class="price">◆ 4</span></button>
         <div class="shop-actions">
           <button id="reroll-button" class="wide-button muted-button">REROLL · ◆ 2</button>
           <button id="next-round-button" class="wide-button">NEXT ROUND</button>
@@ -109,7 +112,20 @@
         <div class="dialog-head"><div><span class="dialog-kicker">DRAW PILE</span><h2><span id="deck-dialog-count">44</span> cards left</h2></div><button id="close-deck" class="icon-button" aria-label="Close deck">×</button></div>
         <div id="deck-summary" class="deck-summary"></div>
         <div id="deck-grid" class="deck-grid" aria-label="Cards remaining in draw pile"></div>
+        <div class="section-heading mastery-heading"><div><span>MASTERY</span><h2>Hand levels</h2></div></div>
+        <div id="mastery-grid" class="mastery-grid"></div>
         <p class="deck-note">These are the cards that can still be drawn this round. Cards currently in your hand are not included.</p>
+      </dialog>
+
+      <dialog id="pack-dialog" class="pack-dialog">
+        <div class="dialog-head"><div><span class="dialog-kicker">INSIGHT PACK</span><h2>Choose one hand to level up</h2></div><button id="close-pack" class="icon-button" aria-label="Close pack">×</button></div>
+        <div id="pack-options" class="pack-options"></div>
+      </dialog>
+
+      <dialog id="charm-dialog" class="charm-dialog">
+        <div class="dialog-head"><div><span class="dialog-kicker">EQUIPPED CHARM</span><h2 id="charm-dialog-name"></h2></div><button id="close-charm" class="icon-button" aria-label="Close charm">×</button></div>
+        <p id="charm-dialog-text"></p>
+        <button id="sell-charm" class="wide-button danger"></button>
       </dialog>
     </main>
     <script src="app.js" defer></script>
