@@ -227,7 +227,7 @@ function winRound() {
 
 function renderShop() {
   const list = document.querySelector("#shop-list");
-  if (!state.shop.length) list.innerHTML = `<p class="message">You found every charm. Keep your coins.</p>`;
+  if (!state.shop.length) list.innerHTML = `<p class="message">You found every relic. Keep your coins.</p>`;
   else list.innerHTML = state.shop.map(c => `<button class="shop-item" data-buy="${c.id}" ${state.money < c.cost || state.charms.length >= MAX_CHARMS ? "disabled" : ""}><span class="shop-glyph">${c.glyph}</span><span class="shop-copy"><strong>${c.name}</strong><small>${c.text}</small></span><span class="price">◆ ${c.cost}</span></button>`).join("");
   document.querySelector("#shop-money").textContent = state.money;
   document.querySelector("#slot-label").textContent = `${state.charms.length} / ${MAX_CHARMS} slots`;
@@ -351,7 +351,7 @@ function endRun(won) {
   busy = false;
   document.querySelector("#end-kicker").textContent = won ? "RUN COMPLETE" : "RUN OVER";
   document.querySelector("#end-title").textContent = won ? "The table is yours." : "The target held.";
-  document.querySelector("#end-summary").textContent = won ? "Nine rounds cleared. Your charms turned a plain deck into a scoring machine." : `You reached Ante ${Math.floor(state.round / 3) + 1}, Round ${state.round % 3 + 1}. One better hand could change the run.`;
+  document.querySelector("#end-summary").textContent = won ? "Nine rounds cleared. Your relics turned a plain deck into a scoring machine." : `You reached Ante ${Math.floor(state.round / 3) + 1}, Round ${state.round % 3 + 1}. One better hand could change the run.`;
   document.querySelector("#best-hand-stat").textContent = `${state.bestHand}${state.bestScore ? ` · ${state.bestScore}` : ""}`;
   document.querySelector("#cards-played-stat").textContent = state.cardsPlayed;
   document.querySelector("#coins-stat").textContent = state.money;
