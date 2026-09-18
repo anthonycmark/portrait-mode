@@ -28,14 +28,23 @@ const ENHANCEMENTS = {
   mint: { mark: "◆", name: "Minted", text: "+1 coin whenever played" }
 };
 const TARGETS = [300, 520, 820, 1250, 1850, 2700, 3900, 5600, 8000];
+const MAX_CHARMS = 5;
+const BOSS_RULES = [
+  { id: "red_tax", name: "Crimson Tax", text: "Red cards give no base rank chips" },
+  { id: "no_repeat", name: "Closed Circuit", text: "A hand type can score only once this round" },
+  { id: "four_limit", name: "The Narrow Gate", text: "Hands with 5 cards score nothing" }
+];
 const SAVE_KEY = "pocket-stakes-save-v1";
 
 let state;
 let sortMode = "rank";
 let busy = false;
+let selectedCharmId = null;
+
+function defaultHandLevels() { return Object.fromEntries(Object.keys(HANDS).map(name => [name, 1])); }
 
 function freshState() {
-  return { deck: [], hand: [], selected: [], score: 0, round: 0, handsLeft: 4, discardsLeft: 3, money: 0, charms: [], enhancements: {}, bestHand: "—", bestScore: 0, cardsPlayed: 0, shop: [], forge: [], lastHand: null, playedTypes: [], handsPlayedThisRound: 0 };
+  return { deck: [], hand: [], selected: [], score: 0, round: 0, handsLeft: 4, discardsLeft: 3, money: 0, charms: [], enhancements: {}, handLevels: defaultHandLevels(), bestHand: "—", bestScore: 0, cardsPlayed: 0, shop: [], forge: [], lastHand: null, playedTypes: [], handsPlayedThisRound: 0, packOpened: false, packChoices: [] };
 }
 
 function makeDeck() {
@@ -71,8 +80,9 @@ function evaluate(cards) {
   else if (counts[0] === 3) name = "Three of a Kind";
   else if (counts[0] === 2 && counts[1] === 2) name = "Two Pair";
   else if (counts[0] === 2) name = "Pair";
-  let [base, mult] = HANDS[name];
-  let chips = base + cards.reduce((sum, c) => sum + Math.min(c.value, 10), 0);
+  let [base, mult] = getHandStats(name);
+  const boss = blindInfo().boss;
+  let chips = base + cards.reduce((sum, c) => sum + (boss?.id === "red_tax" && (c.suit === "♥" || c.suit === "♦") ? 0 : Math.min(c.value, 10)), 0);
   chips += cards.filter(c => c.enhancement === "boost").length * 20;
   chips += cards.filter(c => c.enhancement === "echo").reduce((sum, c) => sum + Math.min(c.value, 10), 0);
   if (hasCharm("spark")) chips += 25;
@@ -92,10 +102,21 @@ function evaluate(cards) {
   if (hasCharm("low") && cards.every(c => c.value <= 8)) xMult *= 2;
   if (hasCharm("first") && state.handsPlayedThisRound === 0) xMult *= 2;
   if (hasCharm("clutch") && state.handsLeft === 1) xMult *= 3;
-  return { name, chips, mult, xMult, total: Math.round(chips * mult * xMult) };
+  let blocked = null;
+  if (boss?.id === "no_repeat" && state.playedTypes.includes(name)) blocked = "Already scored this hand type";
+  if (boss?.id === "four_limit" && cards.length === 5) blocked = "Five-card hands are blocked";
+  return { name, chips, mult, xMult, blocked, total: blocked ? 0 : Math.round(chips * mult * xMult) };
 }
 
 function hasCharm(id) { return state.charms.some(c => c.id === id); }
+function getHandStats(name) { const level = state.handLevels?.[name] || 1; return [HANDS[name][0] + (level - 1) * 10, HANDS[name][1] + (level - 1)]; }
+function blindInfo() {
+  const stage = state.round % 3;
+  if (stage === 0) return { name: "Small Stake", reward: 3, boss: null };
+  if (stage === 1) return { name: "Big Stake", reward: 4, boss: null };
+  const boss = BOSS_RULES[Math.floor(state.round / 3) % BOSS_RULES.length];
+  return { name: `Boss · ${boss.name}`, reward: 6, boss };
+}
 function roundTarget() { return TARGETS[state.round] || TARGETS.at(-1) * (state.round - TARGETS.length + 2); }
 
 function cardHTML(card, selected = false) {
@@ -115,7 +136,7 @@ function render() {
   const selectedCards = state.hand.filter(c => state.selected.includes(c.id));
   const preview = evaluate(selectedCards);
   document.querySelector("#hand").innerHTML = sortedHand().map(c => cardHTML(c, state.selected.includes(c.id))).join("");
-  document.querySelector("#hand-name").textContent = preview.name;
+  document.querySelector("#hand-name").textContent = preview.name === "No hand selected" ? preview.name : `${preview.name} · Lv.${state.handLevels[preview.name] || 1}`;
   document.querySelector("#selection-count").textContent = `${state.selected.length} / 5`;
   document.querySelector("#score-label").textContent = state.score.toLocaleString();
   document.querySelector("#target-label").textContent = roundTarget().toLocaleString();
@@ -128,7 +149,11 @@ function render() {
   document.querySelector("#discard-count").textContent = `${state.discardsLeft} left`;
   document.querySelector("#play-button").disabled = !state.selected.length || !state.handsLeft || busy;
   document.querySelector("#discard-button").disabled = !state.selected.length || !state.discardsLeft || busy;
-  document.querySelector("#modifier-strip").innerHTML = state.charms.map(c => `<div class="charm"><strong>${c.glyph} ${c.name}</strong><small>${c.text}</small></div>`).join("");
+  document.querySelector("#modifier-strip").innerHTML = state.charms.map(c => `<button class="charm" data-owned-charm="${c.id}"><strong>${c.glyph} ${c.name}</strong><small>${c.text}</small></button>`).join("");
+  const blind = blindInfo();
+  const rule = document.querySelector("#blind-rule");
+  rule.textContent = blind.boss ? `${blind.name}: ${blind.boss.text}` : `${blind.name} · Base reward ◆ ${blind.reward}`;
+  rule.classList.toggle("boss", Boolean(blind.boss));
   document.querySelector("#sort-rank").classList.toggle("active", sortMode === "rank");
   document.querySelector("#sort-suit").classList.toggle("active", sortMode === "suit");
   save();
@@ -160,7 +185,7 @@ async function playHand() {
   document.querySelector("#played-cards").innerHTML = cards.map(c => cardHTML(c)).join("");
   const minted = cards.filter(c => c.enhancement === "mint").length;
   if (minted) state.money += minted;
-  document.querySelector("#message").textContent = `${result.name} · ${result.chips} × ${result.mult}${result.xMult > 1 ? ` × ${result.xMult}` : ""}${minted ? ` · +${minted}◆` : ""}`;
+  document.querySelector("#message").textContent = result.blocked ? result.blocked : `${result.name} Lv.${state.handLevels[result.name]} · ${result.chips} × ${result.mult}${result.xMult > 1 ? ` × ${result.xMult}` : ""}${minted ? ` · +${minted}◆` : ""}`;
   await wait(280);
   state.score += result.total;
   const burst = document.querySelector("#score-burst");
@@ -190,7 +215,7 @@ function discard() {
 
 function winRound() {
   busy = false;
-  const reward = 3 + state.handsLeft + Math.floor(state.score / roundTarget());
+  const reward = blindInfo().reward + state.handsLeft + Math.floor(state.score / roundTarget());
   state.money += reward;
   state.shop = shuffle(CHARMS.filter(c => !hasCharm(c.id))).slice(0, 3);
   createForgeOffers();
@@ -203,9 +228,13 @@ function winRound() {
 function renderShop() {
   const list = document.querySelector("#shop-list");
   if (!state.shop.length) list.innerHTML = `<p class="message">You found every charm. Keep your coins.</p>`;
-  else list.innerHTML = state.shop.map(c => `<button class="shop-item" data-buy="${c.id}" ${state.money < c.cost ? "disabled" : ""}><span class="shop-glyph">${c.glyph}</span><span class="shop-copy"><strong>${c.name}</strong><small>${c.text}</small></span><span class="price">◆ ${c.cost}</span></button>`).join("");
+  else list.innerHTML = state.shop.map(c => `<button class="shop-item" data-buy="${c.id}" ${state.money < c.cost || state.charms.length >= MAX_CHARMS ? "disabled" : ""}><span class="shop-glyph">${c.glyph}</span><span class="shop-copy"><strong>${c.name}</strong><small>${c.text}</small></span><span class="price">◆ ${c.cost}</span></button>`).join("");
   document.querySelector("#shop-money").textContent = state.money;
+  document.querySelector("#slot-label").textContent = `${state.charms.length} / ${MAX_CHARMS} slots`;
   document.querySelector("#reroll-button").disabled = state.money < 2 || !CHARMS.some(c => !hasCharm(c.id));
+  const packButton = document.querySelector("#pack-button");
+  packButton.disabled = (state.packOpened && !state.packChoices.length) || (!state.packOpened && state.money < 4);
+  packButton.querySelector("strong").textContent = state.packChoices.length ? "RESUME INSIGHT PACK" : state.packOpened ? "PACK OPENED" : "OPEN INSIGHT PACK";
   document.querySelector("#forge-list").innerHTML = state.forge.length ? state.forge.map((offer, index) => {
     const enhancement = ENHANCEMENTS[offer.type];
     const red = offer.suit === "♥" || offer.suit === "♦";
@@ -239,10 +268,62 @@ function rerollShop() {
 
 function buyCharm(id) {
   const charm = CHARMS.find(c => c.id === id);
-  if (!charm || hasCharm(id) || state.money < charm.cost) return;
+  if (!charm || hasCharm(id) || state.money < charm.cost || state.charms.length >= MAX_CHARMS) return;
   state.money -= charm.cost;
   state.charms.push(charm);
   state.shop = state.shop.filter(c => c.id !== id);
+  renderShop(); save();
+}
+
+function openCharm(id) {
+  const charm = state.charms.find(c => c.id === id);
+  if (!charm) return;
+  selectedCharmId = id;
+  document.querySelector("#charm-dialog-name").textContent = `${charm.glyph} ${charm.name}`;
+  document.querySelector("#charm-dialog-text").textContent = charm.text;
+  document.querySelector("#sell-charm").textContent = `SELL · +◆ ${Math.max(1, Math.floor(charm.cost / 2))}`;
+  document.querySelector("#charm-dialog").showModal();
+}
+
+function sellSelectedCharm() {
+  const charm = state.charms.find(c => c.id === selectedCharmId);
+  if (!charm) return;
+  state.money += Math.max(1, Math.floor(charm.cost / 2));
+  state.charms = state.charms.filter(c => c.id !== selectedCharmId);
+  selectedCharmId = null;
+  document.querySelector("#charm-dialog").close();
+  render();
+  if (!document.querySelector("#shop-screen").classList.contains("hidden")) renderShop();
+}
+
+function openPack() {
+  if (state.packChoices.length) {
+    renderPack();
+    document.querySelector("#pack-dialog").showModal();
+    return;
+  }
+  if (state.packOpened || state.money < 4) return;
+  state.money -= 4;
+  state.packOpened = true;
+  state.packChoices = shuffle(Object.keys(HANDS)).slice(0, 3);
+  renderPack();
+  document.querySelector("#pack-dialog").showModal();
+  renderShop(); save();
+}
+
+function renderPack() {
+  document.querySelector("#pack-options").innerHTML = state.packChoices.map(name => {
+    const level = state.handLevels[name] || 1;
+    const [chips, mult] = getHandStats(name);
+    return `<button class="pack-option" data-level-hand="${name}"><span><strong>${name}</strong><small>Now ${chips} chips × ${mult} mult</small></span><span class="level-jump">Lv.${level} → ${level + 1}</span></button>`;
+  }).join("");
+}
+
+function chooseHandLevel(name) {
+  if (!state.packChoices.includes(name)) return;
+  state.handLevels[name] = (state.handLevels[name] || 1) + 1;
+  state.packChoices = [];
+  document.querySelector("#pack-dialog").close();
   renderShop(); save();
 }
 
@@ -255,6 +336,8 @@ function nextRound() {
   state.lastHand = null;
   state.playedTypes = [];
   state.handsPlayedThisRound = 0;
+  state.packOpened = false;
+  state.packChoices = [];
   state.hand = [];
   state.selected = [];
   state.deck = shuffle(makeDeck());
@@ -296,10 +379,13 @@ function load() {
       saved.charms = (saved.charms || []).map(savedCharm => CHARMS.find(charm => charm.id === savedCharm.id) || savedCharm);
       saved.shop = (saved.shop || []).map(savedCharm => CHARMS.find(charm => charm.id === savedCharm.id) || savedCharm);
       saved.enhancements ||= {};
+      saved.handLevels = { ...defaultHandLevels(), ...(saved.handLevels || {}) };
       saved.forge ||= [];
       saved.playedTypes ||= [];
       saved.lastHand ??= null;
       saved.handsPlayedThisRound ||= 0;
+      saved.packOpened ||= false;
+      saved.packChoices ||= [];
       [...saved.hand, ...saved.deck].forEach(card => { card.enhancement = saved.enhancements[`${card.suit}${card.rank}`] || card.enhancement || null; });
       return saved;
     }
@@ -311,28 +397,37 @@ document.addEventListener("click", e => {
   const card = e.target.closest("#hand .card"); if (card) toggleCard(card.dataset.id);
   const buy = e.target.closest("[data-buy]"); if (buy) buyCharm(buy.dataset.buy);
   const forge = e.target.closest("[data-forge]"); if (forge) buyForge(Number(forge.dataset.forge));
+  const ownedCharm = e.target.closest("[data-owned-charm]"); if (ownedCharm) openCharm(ownedCharm.dataset.ownedCharm);
+  const levelHand = e.target.closest("[data-level-hand]"); if (levelHand) chooseHandLevel(levelHand.dataset.levelHand);
 });
 document.querySelector("#play-button").addEventListener("click", playHand);
 document.querySelector("#discard-button").addEventListener("click", discard);
 document.querySelector("#next-round-button").addEventListener("click", nextRound);
 document.querySelector("#new-run-button").addEventListener("click", startNew);
 document.querySelector("#reroll-button").addEventListener("click", rerollShop);
+document.querySelector("#pack-button").addEventListener("click", openPack);
 document.querySelector("#sort-rank").addEventListener("click", () => { sortMode = "rank"; render(); });
 document.querySelector("#sort-suit").addEventListener("click", () => { sortMode = "suit"; render(); });
 const dialog = document.querySelector("#menu-dialog");
 const deckDialog = document.querySelector("#deck-dialog");
+const packDialog = document.querySelector("#pack-dialog");
+const charmDialog = document.querySelector("#charm-dialog");
 document.querySelector("#menu-button").addEventListener("click", () => dialog.showModal());
 document.querySelector("#close-menu").addEventListener("click", () => dialog.close());
 document.querySelector("#resume-button").addEventListener("click", () => dialog.close());
 document.querySelector("#restart-button").addEventListener("click", () => { dialog.close(); startNew(); });
 document.querySelector("#deck-button").addEventListener("click", () => { renderDeck(); deckDialog.showModal(); });
 document.querySelector("#close-deck").addEventListener("click", () => deckDialog.close());
+document.querySelector("#close-pack").addEventListener("click", () => packDialog.close());
+document.querySelector("#close-charm").addEventListener("click", () => charmDialog.close());
+document.querySelector("#sell-charm").addEventListener("click", sellSelectedCharm);
 
 function renderDeck() {
   const cards = [...state.deck].sort((a,b) => SUITS.indexOf(a.suit) - SUITS.indexOf(b.suit) || b.value - a.value);
   document.querySelector("#deck-dialog-count").textContent = cards.length;
   document.querySelector("#deck-summary").innerHTML = SUITS.map(suit => `<div class="suit-count ${suit === "♥" || suit === "♦" ? "red" : ""}">${suit} ${cards.filter(c => c.suit === suit).length}</div>`).join("");
   document.querySelector("#deck-grid").innerHTML = cards.map(card => `<div class="deck-card ${card.suit === "♥" || card.suit === "♦" ? "red" : ""} ${card.enhancement ? "enhanced" : ""}"><span>${card.rank}</span><span>${card.suit}${card.enhancement ? ENHANCEMENTS[card.enhancement].mark : ""}</span></div>`).join("");
+  document.querySelector("#mastery-grid").innerHTML = Object.keys(HANDS).map(name => `<div class="mastery-item"><span>${name}</span><strong>Lv.${state.handLevels[name] || 1}</strong></div>`).join("");
 }
 
 state = load() || freshState();
