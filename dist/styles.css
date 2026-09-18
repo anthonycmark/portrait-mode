@@ -42,12 +42,14 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .progress-bar { height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #29d8ae, var(--gold)); transition: width .45s cubic-bezier(.2,.8,.2,1); }
 .modifier-strip { display: flex; min-height: 48px; gap: 8px; overflow-x: auto; scrollbar-width: none; }
 .modifier-strip:empty::after { content: "Win a round to find your first charm"; color: var(--muted); width: 100%; padding: 13px; text-align: center; border: 1px dashed var(--line); border-radius: 13px; font-size: .8rem; }
-.charm { flex: 0 0 auto; min-width: 112px; padding: 8px 10px; border-radius: 12px; background: #382955; border: 1px solid #7050aa; }
+.charm { flex: 0 0 auto; min-width: 112px; padding: 8px 10px; text-align: left; color: var(--ink); border-radius: 12px; background: #382955; border: 1px solid #7050aa; }
 .charm strong, .charm small { display: block; }
 .charm strong { font-size: .78rem; }
 .charm small { color: #cfc0ee; margin-top: 2px; font-size: .68rem; }
 .table-area { min-height: 165px; padding: 12px; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; border-radius: 24px; border: 1px solid rgba(74,235,197,.22); background: radial-gradient(circle at 50% 40%, #137769, var(--felt) 52%, var(--felt-dark)); box-shadow: inset 0 0 45px rgba(0,0,0,.28), 0 16px 32px rgba(0,0,0,.2); }
 .table-area::before { content: ""; position: absolute; inset: 9px; border: 1px solid rgba(255,255,255,.08); border-radius: 18px; pointer-events: none; }
+.blind-rule { position: absolute; top: 12px; left: 50%; max-width: calc(100% - 38px); transform: translateX(-50%); padding: 5px 9px; border-radius: 8px; background: rgba(4,24,27,.65); color: #b7efe4; font-size: .68rem; font-weight: 850; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.blind-rule.boss { color: #ffd4da; background: rgba(72,14,27,.72); border: 1px solid rgba(255,93,115,.35); }
 .message { position: relative; color: rgba(255,255,255,.75); font-weight: 700; font-size: .9rem; }
 .played-cards { min-height: 88px; width: 100%; display: flex; justify-content: center; align-items: center; gap: 5px; }
 .played-cards:empty { display: none; }
@@ -91,6 +93,7 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .price { color: var(--gold); font-weight: 900; }
 .forge-section { padding-top: 4px; border-top: 1px solid var(--line); }
 .section-heading { display: flex; align-items: end; justify-content: space-between; margin: 10px 2px 8px; }
+.shop-title-row { margin-top: 0; }
 .section-heading span, .dialog-kicker { color: var(--blue); font-size: .67rem; font-weight: 900; letter-spacing: .12em; }
 .section-heading h2 { margin: 2px 0 0; font-size: 1.1rem; }
 .section-heading small { color: var(--muted); }
@@ -103,6 +106,11 @@ button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .forge-card { color: var(--gold); font-weight: 1000; }
 .shop-actions { display: grid; grid-template-columns: .8fr 1.2fr; gap: 9px; position: sticky; bottom: 0; padding-top: 4px; background: linear-gradient(180deg,transparent,#080d14 22%); }
 .muted-button { color: var(--ink); background: var(--panel-2); }
+.pack-button { width: 100%; padding: 12px; display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; text-align: left; border: 1px solid #8b6d23; border-radius: 15px; color: var(--ink); background: linear-gradient(145deg,#4b3a18,#2b2316); }
+.pack-button:disabled { opacity: .42; }
+.pack-button strong, .pack-button small { display: block; }
+.pack-button small { margin-top: 3px; color: #dfcd9c; }
+.pack-icon { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px; color: #1b1b17; background: var(--gold); font-size: 1.4rem; }
 .wide-button { width: 100%; min-height: 58px; background: var(--gold); color: #17202c; }
 .wide-button.danger { background: #6d2733; color: #fff; margin-top: 10px; }
 .end-card { margin: auto 0; padding: 24px; border: 1px solid var(--line); border-radius: 24px; background: var(--panel); box-shadow: 0 20px 60px rgba(0,0,0,.38); }
@@ -129,6 +137,16 @@ dialog small { display: block; margin-top: 16px; text-align: center; }
 .deck-card.red { color: #cc2940; }
 .deck-card.enhanced { box-shadow: 0 0 0 2px var(--gold), 0 2px 0 #8b6b24; }
 .deck-note { margin: 16px 0 0; color: var(--muted); font-size: .78rem; line-height: 1.4; }
+.mastery-heading { margin-top: 20px; }
+.mastery-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.mastery-item { padding: 8px 9px; display: flex; justify-content: space-between; border-radius: 9px; color: var(--muted); background: var(--panel-2); font-size: .72rem; }
+.mastery-item strong { color: var(--gold); }
+.pack-options { display: grid; gap: 10px; margin-top: 18px; }
+.pack-option { padding: 16px; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; text-align: left; border: 1px solid #8b6d23; border-radius: 15px; color: var(--ink); background: linear-gradient(145deg,#4b3a18,#252018); }
+.pack-option strong, .pack-option small { display: block; }
+.pack-option small { margin-top: 4px; color: #dfcd9c; }
+.level-jump { color: var(--gold); font-weight: 950; }
+.charm-dialog p { color: var(--muted); line-height: 1.45; }
 @media (min-width: 700px) { body { display: grid; place-items: center; } .screen { height: min(860px, 96dvh); min-height: 0; border: 1px solid var(--line); border-radius: 28px; overflow: hidden; box-shadow: 0 30px 90px #000; } }
 @media (max-height: 720px) { .screen { gap: 6px; } .table-area { min-height: 120px; } .hand { min-height: 95px; } .card { height: 84px; } .score-main, .target-wrap { min-height: 64px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
