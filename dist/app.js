@@ -4,11 +4,11 @@ const HANDS = {
   "High Card": [5, 1], Pair: [10, 2], "Two Pair": [20, 2], "Three of a Kind": [30, 3], Straight: [30, 4], Flush: [35, 4], "Full House": [45, 4], "Four of a Kind": [60, 7], "Straight Flush": [100, 8]
 };
 const CHARMS = [
-  { id: "spark", glyph: "✦", name: "Bright Cut", text: "+12 chips on every hand", cost: 4 },
+  { id: "spark", glyph: "✦", name: "Bright Cut", text: "+25 chips on every hand", cost: 4 },
   { id: "pair", glyph: "Ⅱ", name: "Double Down", text: "+3 mult when a Pair scores", cost: 5 },
-  { id: "red", glyph: "♥", name: "Red Thread", text: "+4 chips for each red card played", cost: 5 },
+  { id: "red", glyph: "♥", name: "Red Thread", text: "+8 chips for each red card played", cost: 5 },
   { id: "five", glyph: "Ⅴ", name: "Full Spread", text: "+2 mult when playing 5 cards", cost: 6 },
-  { id: "face", glyph: "♛", name: "Court Favor", text: "+5 chips for each face card played", cost: 6 },
+  { id: "face", glyph: "♛", name: "Court Favor", text: "+12 chips for each face card played", cost: 6 },
   { id: "flush", glyph: "≋", name: "Deep Current", text: "+5 mult when a Flush scores", cost: 7 }
 ];
 const TARGETS = [300, 520, 820, 1250, 1850, 2700, 3900, 5600, 8000];
@@ -56,9 +56,9 @@ function evaluate(cards) {
   else if (counts[0] === 2) name = "Pair";
   let [base, mult] = HANDS[name];
   let chips = base + cards.reduce((sum, c) => sum + Math.min(c.value, 10), 0);
-  if (hasCharm("spark")) chips += 12;
-  if (hasCharm("red")) chips += cards.filter(c => c.suit === "♥" || c.suit === "♦").length * 4;
-  if (hasCharm("face")) chips += cards.filter(c => ["J","Q","K"].includes(c.rank)).length * 5;
+  if (hasCharm("spark")) chips += 25;
+  if (hasCharm("red")) chips += cards.filter(c => c.suit === "♥" || c.suit === "♦").length * 8;
+  if (hasCharm("face")) chips += cards.filter(c => ["J","Q","K"].includes(c.rank)).length * 12;
   if (hasCharm("pair") && name === "Pair") mult += 3;
   if (hasCharm("five") && cards.length === 5) mult += 2;
   if (hasCharm("flush") && name.includes("Flush")) mult += 5;
@@ -219,7 +219,14 @@ function save() { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }
 function wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
 function load() {
-  try { const saved = JSON.parse(localStorage.getItem(SAVE_KEY)); if (saved?.hand?.length) return saved; } catch (_) {}
+  try {
+    const saved = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if (saved?.hand?.length) {
+      saved.charms = (saved.charms || []).map(savedCharm => CHARMS.find(charm => charm.id === savedCharm.id) || savedCharm);
+      saved.shop = (saved.shop || []).map(savedCharm => CHARMS.find(charm => charm.id === savedCharm.id) || savedCharm);
+      return saved;
+    }
+  } catch (_) {}
   return null;
 }
 
