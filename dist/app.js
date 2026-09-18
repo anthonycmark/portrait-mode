@@ -9,8 +9,24 @@ const CHARMS = [
   { id: "red", glyph: "♥", name: "Red Thread", text: "+8 chips for each red card played", cost: 5 },
   { id: "five", glyph: "Ⅴ", name: "Full Spread", text: "+2 mult when playing 5 cards", cost: 6 },
   { id: "face", glyph: "♛", name: "Court Favor", text: "+12 chips for each face card played", cost: 6 },
-  { id: "flush", glyph: "≋", name: "Deep Current", text: "+5 mult when a Flush scores", cost: 7 }
+  { id: "flush", glyph: "≋", name: "Deep Current", text: "+5 mult when a Flush scores", cost: 7 },
+  { id: "solo", glyph: "Ⅰ", name: "Lone Wolf", text: "×3 score when playing exactly 1 card", cost: 7 },
+  { id: "duet", glyph: "Ⅱ", name: "Two-Step", text: "×2 score when playing exactly 2 cards", cost: 6 },
+  { id: "low", glyph: "↓", name: "Low Profile", text: "×2 score if every card is 8 or lower", cost: 7 },
+  { id: "rainbow", glyph: "◈", name: "Four Corners", text: "+5 mult when 4 suits are played", cost: 6 },
+  { id: "odd", glyph: "3", name: "Odd Hours", text: "+2 mult per odd numbered card", cost: 5 },
+  { id: "black", glyph: "♠", name: "Black Book", text: "+9 chips per black card", cost: 5 },
+  { id: "repeat", glyph: "↻", name: "Encore", text: "+4 mult for repeating the previous hand", cost: 6 },
+  { id: "variety", glyph: "+", name: "Fresh Take", text: "+3 mult the first time each hand scores per round", cost: 5 },
+  { id: "first", glyph: "⚡", name: "Opening Act", text: "×2 score on the first hand of each round", cost: 7 },
+  { id: "clutch", glyph: "!", name: "Last Call", text: "×3 score on your final hand", cost: 8 }
 ];
+const ENHANCEMENTS = {
+  boost: { mark: "+", name: "Charged", text: "+20 chips when played" },
+  echo: { mark: "↻", name: "Echo", text: "Rank chips score twice" },
+  wild: { mark: "W", name: "Wild Suit", text: "Counts as any suit for Flushes" },
+  mint: { mark: "◆", name: "Minted", text: "+1 coin whenever played" }
+};
 const TARGETS = [300, 520, 820, 1250, 1850, 2700, 3900, 5600, 8000];
 const SAVE_KEY = "pocket-stakes-save-v1";
 
@@ -19,11 +35,11 @@ let sortMode = "rank";
 let busy = false;
 
 function freshState() {
-  return { deck: [], hand: [], selected: [], score: 0, round: 0, handsLeft: 4, discardsLeft: 3, money: 0, charms: [], bestHand: "—", bestScore: 0, cardsPlayed: 0, shop: [] };
+  return { deck: [], hand: [], selected: [], score: 0, round: 0, handsLeft: 4, discardsLeft: 3, money: 0, charms: [], enhancements: {}, bestHand: "—", bestScore: 0, cardsPlayed: 0, shop: [], forge: [], lastHand: null, playedTypes: [], handsPlayedThisRound: 0 };
 }
 
 function makeDeck() {
-  return SUITS.flatMap(suit => RANKS.map((rank, i) => ({ id: `${suit}${rank}-${Math.random()}`, suit, rank, value: i + 2 })));
+  return SUITS.flatMap(suit => RANKS.map((rank, i) => ({ id: `${suit}${rank}-${Math.random()}`, suit, rank, value: i + 2, enhancement: state?.enhancements?.[`${suit}${rank}`] || null })));
 }
 
 function shuffle(cards) {
@@ -43,7 +59,8 @@ function evaluate(cards) {
   if (!cards.length) return { name: "No hand selected", chips: 0, mult: 0, total: 0 };
   const counts = Object.values(cards.reduce((a, c) => ((a[c.value] = (a[c.value] || 0) + 1), a), {})).sort((a,b) => b-a);
   const values = [...new Set(cards.map(c => c.value))].sort((a,b) => a-b);
-  const flush = cards.length === 5 && cards.every(c => c.suit === cards[0].suit);
+  const suitedCards = cards.filter(c => c.enhancement !== "wild");
+  const flush = cards.length === 5 && (!suitedCards.length || suitedCards.every(c => c.suit === suitedCards[0].suit));
   const straight = cards.length === 5 && (values.length === 5 && (values[4] - values[0] === 4 || values.join(",") === "2,3,4,5,14"));
   let name = "High Card";
   if (straight && flush) name = "Straight Flush";
@@ -56,13 +73,26 @@ function evaluate(cards) {
   else if (counts[0] === 2) name = "Pair";
   let [base, mult] = HANDS[name];
   let chips = base + cards.reduce((sum, c) => sum + Math.min(c.value, 10), 0);
+  chips += cards.filter(c => c.enhancement === "boost").length * 20;
+  chips += cards.filter(c => c.enhancement === "echo").reduce((sum, c) => sum + Math.min(c.value, 10), 0);
   if (hasCharm("spark")) chips += 25;
   if (hasCharm("red")) chips += cards.filter(c => c.suit === "♥" || c.suit === "♦").length * 8;
   if (hasCharm("face")) chips += cards.filter(c => ["J","Q","K"].includes(c.rank)).length * 12;
+  if (hasCharm("black")) chips += cards.filter(c => c.suit === "♠" || c.suit === "♣").length * 9;
   if (hasCharm("pair") && name === "Pair") mult += 3;
   if (hasCharm("five") && cards.length === 5) mult += 2;
   if (hasCharm("flush") && name.includes("Flush")) mult += 5;
-  return { name, chips, mult, total: chips * mult };
+  if (hasCharm("rainbow") && new Set(cards.map(c => c.suit)).size >= 4) mult += 5;
+  if (hasCharm("odd")) mult += cards.filter(c => [3,5,7,9].includes(c.value)).length * 2;
+  if (hasCharm("repeat") && state.lastHand === name) mult += 4;
+  if (hasCharm("variety") && !state.playedTypes.includes(name)) mult += 3;
+  let xMult = 1;
+  if (hasCharm("solo") && cards.length === 1) xMult *= 3;
+  if (hasCharm("duet") && cards.length === 2) xMult *= 2;
+  if (hasCharm("low") && cards.every(c => c.value <= 8)) xMult *= 2;
+  if (hasCharm("first") && state.handsPlayedThisRound === 0) xMult *= 2;
+  if (hasCharm("clutch") && state.handsLeft === 1) xMult *= 3;
+  return { name, chips, mult, xMult, total: Math.round(chips * mult * xMult) };
 }
 
 function hasCharm(id) { return state.charms.some(c => c.id === id); }
@@ -70,7 +100,8 @@ function roundTarget() { return TARGETS[state.round] || TARGETS.at(-1) * (state.
 
 function cardHTML(card, selected = false) {
   const red = card.suit === "♥" || card.suit === "♦";
-  return `<button class="card ${red ? "red" : ""} ${selected ? "selected" : ""}" data-id="${card.id}" aria-label="${card.rank} of ${suitName(card.suit)}${selected ? ", selected" : ""}" aria-pressed="${selected}"><span class="rank">${card.rank}</span><span class="suit">${card.suit}</span><span class="mini">${card.rank}${card.suit}</span></button>`;
+  const enhancement = ENHANCEMENTS[card.enhancement];
+  return `<button class="card ${red ? "red" : ""} ${selected ? "selected" : ""}" data-id="${card.id}" aria-label="${card.rank} of ${suitName(card.suit)}${enhancement ? `, ${enhancement.name}` : ""}${selected ? ", selected" : ""}" aria-pressed="${selected}"><span class="rank">${card.rank}</span>${enhancement ? `<span class="card-mark">${enhancement.mark}</span>` : ""}<span class="suit">${card.suit}</span><span class="mini">${card.rank}${card.suit}</span></button>`;
 }
 
 function suitName(suit) { return ({"♠":"spades","♥":"hearts","♦":"diamonds","♣":"clubs"})[suit]; }
@@ -92,6 +123,7 @@ function render() {
   document.querySelector("#ante-label").textContent = `ANTE ${Math.floor(state.round / 3) + 1}`;
   document.querySelector("#round-label").textContent = `ROUND ${state.round % 3 + 1}/3`;
   document.querySelector("#money-label").textContent = state.money;
+  document.querySelector("#deck-count").textContent = state.deck.length;
   document.querySelector("#hand-count").textContent = `${state.handsLeft} left`;
   document.querySelector("#discard-count").textContent = `${state.discardsLeft} left`;
   document.querySelector("#play-button").disabled = !state.selected.length || !state.handsLeft || busy;
@@ -126,13 +158,18 @@ async function playHand() {
   state.cardsPlayed += cards.length;
   if (result.total > state.bestScore) { state.bestScore = result.total; state.bestHand = result.name; }
   document.querySelector("#played-cards").innerHTML = cards.map(c => cardHTML(c)).join("");
-  document.querySelector("#message").textContent = `${result.name} · ${result.chips} × ${result.mult}`;
+  const minted = cards.filter(c => c.enhancement === "mint").length;
+  if (minted) state.money += minted;
+  document.querySelector("#message").textContent = `${result.name} · ${result.chips} × ${result.mult}${result.xMult > 1 ? ` × ${result.xMult}` : ""}${minted ? ` · +${minted}◆` : ""}`;
   await wait(280);
   state.score += result.total;
   const burst = document.querySelector("#score-burst");
   burst.textContent = `+${result.total.toLocaleString()}`;
   burst.classList.remove("pop"); void burst.offsetWidth; burst.classList.add("pop");
   if (navigator.vibrate) navigator.vibrate([20,40,40]);
+  state.lastHand = result.name;
+  if (!state.playedTypes.includes(result.name)) state.playedTypes.push(result.name);
+  state.handsPlayedThisRound++;
   replaceSelected();
   busy = false;
   const cleared = state.score >= roundTarget();
@@ -156,6 +193,7 @@ function winRound() {
   const reward = 3 + state.handsLeft + Math.floor(state.score / roundTarget());
   state.money += reward;
   state.shop = shuffle(CHARMS.filter(c => !hasCharm(c.id))).slice(0, 3);
+  createForgeOffers();
   if (state.round >= TARGETS.length - 1) return endRun(true);
   document.querySelector("#shop-money").textContent = state.money;
   renderShop();
@@ -167,6 +205,36 @@ function renderShop() {
   if (!state.shop.length) list.innerHTML = `<p class="message">You found every charm. Keep your coins.</p>`;
   else list.innerHTML = state.shop.map(c => `<button class="shop-item" data-buy="${c.id}" ${state.money < c.cost ? "disabled" : ""}><span class="shop-glyph">${c.glyph}</span><span class="shop-copy"><strong>${c.name}</strong><small>${c.text}</small></span><span class="price">◆ ${c.cost}</span></button>`).join("");
   document.querySelector("#shop-money").textContent = state.money;
+  document.querySelector("#reroll-button").disabled = state.money < 2 || !CHARMS.some(c => !hasCharm(c.id));
+  document.querySelector("#forge-list").innerHTML = state.forge.length ? state.forge.map((offer, index) => {
+    const enhancement = ENHANCEMENTS[offer.type];
+    const red = offer.suit === "♥" || offer.suit === "♦";
+    return `<button class="forge-item" data-forge="${index}" ${state.money < offer.cost ? "disabled" : ""}><span class="forge-card" style="${red ? "color:#ff7185" : ""}">${offer.rank}${offer.suit} · ${enhancement.mark}</span><strong>${enhancement.name}</strong><small>${enhancement.text} · ◆ ${offer.cost}</small></button>`;
+  }).join("") : `<p class="message">Every offered card is already tuned.</p>`;
+}
+
+function createForgeOffers() {
+  const cards = [...state.hand, ...state.deck].filter(c => !state.enhancements[`${c.suit}${c.rank}`]);
+  const types = Object.keys(ENHANCEMENTS);
+  state.forge = shuffle(cards).slice(0, 3).map((card, index) => ({ suit: card.suit, rank: card.rank, type: types[(state.round + index) % types.length], cost: 4 }));
+}
+
+function buyForge(index) {
+  const offer = state.forge[index];
+  if (!offer || state.money < offer.cost) return;
+  const key = `${offer.suit}${offer.rank}`;
+  state.money -= offer.cost;
+  state.enhancements[key] = offer.type;
+  [...state.hand, ...state.deck].forEach(card => { if (`${card.suit}${card.rank}` === key) card.enhancement = offer.type; });
+  state.forge.splice(index, 1);
+  renderShop(); save();
+}
+
+function rerollShop() {
+  if (state.money < 2) return;
+  state.money -= 2;
+  state.shop = shuffle(CHARMS.filter(c => !hasCharm(c.id))).slice(0, 3);
+  renderShop(); save();
 }
 
 function buyCharm(id) {
@@ -184,6 +252,9 @@ function nextRound() {
   state.score = 0;
   state.handsLeft = 4;
   state.discardsLeft = 3;
+  state.lastHand = null;
+  state.playedTypes = [];
+  state.handsPlayedThisRound = 0;
   state.hand = [];
   state.selected = [];
   state.deck = shuffle(makeDeck());
@@ -224,6 +295,12 @@ function load() {
     if (saved?.hand?.length) {
       saved.charms = (saved.charms || []).map(savedCharm => CHARMS.find(charm => charm.id === savedCharm.id) || savedCharm);
       saved.shop = (saved.shop || []).map(savedCharm => CHARMS.find(charm => charm.id === savedCharm.id) || savedCharm);
+      saved.enhancements ||= {};
+      saved.forge ||= [];
+      saved.playedTypes ||= [];
+      saved.lastHand ??= null;
+      saved.handsPlayedThisRound ||= 0;
+      [...saved.hand, ...saved.deck].forEach(card => { card.enhancement = saved.enhancements[`${card.suit}${card.rank}`] || card.enhancement || null; });
       return saved;
     }
   } catch (_) {}
@@ -233,18 +310,30 @@ function load() {
 document.addEventListener("click", e => {
   const card = e.target.closest("#hand .card"); if (card) toggleCard(card.dataset.id);
   const buy = e.target.closest("[data-buy]"); if (buy) buyCharm(buy.dataset.buy);
+  const forge = e.target.closest("[data-forge]"); if (forge) buyForge(Number(forge.dataset.forge));
 });
 document.querySelector("#play-button").addEventListener("click", playHand);
 document.querySelector("#discard-button").addEventListener("click", discard);
 document.querySelector("#next-round-button").addEventListener("click", nextRound);
 document.querySelector("#new-run-button").addEventListener("click", startNew);
+document.querySelector("#reroll-button").addEventListener("click", rerollShop);
 document.querySelector("#sort-rank").addEventListener("click", () => { sortMode = "rank"; render(); });
 document.querySelector("#sort-suit").addEventListener("click", () => { sortMode = "suit"; render(); });
 const dialog = document.querySelector("#menu-dialog");
+const deckDialog = document.querySelector("#deck-dialog");
 document.querySelector("#menu-button").addEventListener("click", () => dialog.showModal());
 document.querySelector("#close-menu").addEventListener("click", () => dialog.close());
 document.querySelector("#resume-button").addEventListener("click", () => dialog.close());
 document.querySelector("#restart-button").addEventListener("click", () => { dialog.close(); startNew(); });
+document.querySelector("#deck-button").addEventListener("click", () => { renderDeck(); deckDialog.showModal(); });
+document.querySelector("#close-deck").addEventListener("click", () => deckDialog.close());
+
+function renderDeck() {
+  const cards = [...state.deck].sort((a,b) => SUITS.indexOf(a.suit) - SUITS.indexOf(b.suit) || b.value - a.value);
+  document.querySelector("#deck-dialog-count").textContent = cards.length;
+  document.querySelector("#deck-summary").innerHTML = SUITS.map(suit => `<div class="suit-count ${suit === "♥" || suit === "♦" ? "red" : ""}">${suit} ${cards.filter(c => c.suit === suit).length}</div>`).join("");
+  document.querySelector("#deck-grid").innerHTML = cards.map(card => `<div class="deck-card ${card.suit === "♥" || card.suit === "♦" ? "red" : ""} ${card.enhancement ? "enhanced" : ""}"><span>${card.rank}</span><span>${card.suit}${card.enhancement ? ENHANCEMENTS[card.enhancement].mark : ""}</span></div>`).join("");
+}
 
 state = load() || freshState();
 if (!state.hand.length) { state.deck = shuffle(makeDeck()); draw(8); }
