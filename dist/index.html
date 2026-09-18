@@ -20,6 +20,7 @@
         <header class="topbar">
           <button id="menu-button" class="icon-button" aria-label="Open menu">☰</button>
           <div class="round-label"><span id="ante-label">ANTE 1</span><strong id="round-label">ROUND 1/3</strong></div>
+          <button id="deck-button" class="deck-button" aria-label="View remaining deck"><strong id="deck-count">44</strong><small>DECK</small></button>
           <div class="money" aria-label="Coins"><span>◆</span><strong id="money-label">0</strong></div>
         </header>
 
@@ -72,7 +73,14 @@
           <div class="money"><span>◆</span><strong id="shop-money">0</strong></div>
         </header>
         <div id="shop-list" class="shop-list"></div>
-        <button id="next-round-button" class="wide-button">NEXT ROUND</button>
+        <section class="forge-section">
+          <div class="section-heading"><div><span>DECK WORK</span><h2>Tune a card</h2></div><small>Permanent for this run</small></div>
+          <div id="forge-list" class="forge-list"></div>
+        </section>
+        <div class="shop-actions">
+          <button id="reroll-button" class="wide-button muted-button">REROLL · ◆ 2</button>
+          <button id="next-round-button" class="wide-button">NEXT ROUND</button>
+        </div>
       </section>
 
       <section id="end-screen" class="screen overlay-screen hidden" aria-labelledby="end-title">
@@ -95,6 +103,13 @@
         <button id="resume-button" class="wide-button">RESUME</button>
         <button id="restart-button" class="wide-button danger">RESTART RUN</button>
         <small>Your run saves automatically on this device.</small>
+      </dialog>
+
+      <dialog id="deck-dialog" class="deck-dialog">
+        <div class="dialog-head"><div><span class="dialog-kicker">DRAW PILE</span><h2><span id="deck-dialog-count">44</span> cards left</h2></div><button id="close-deck" class="icon-button" aria-label="Close deck">×</button></div>
+        <div id="deck-summary" class="deck-summary"></div>
+        <div id="deck-grid" class="deck-grid" aria-label="Cards remaining in draw pile"></div>
+        <p class="deck-note">These are the cards that can still be drawn this round. Cards currently in your hand are not included.</p>
       </dialog>
     </main>
     <script src="app.js" defer></script>
